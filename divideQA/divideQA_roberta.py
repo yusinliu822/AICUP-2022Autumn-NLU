@@ -107,18 +107,13 @@ val_encodings = tokenizer(valid_data_q, valid_data_r, truncation=True, padding=T
 
 # %%
 def add_token_positions(encodings, q_label, r_label, q_reidx, r_reidx, s_data=None):
-    # size = encoding["input_ids"][-1].size()[0]
-    # print(r_label[:10], r_reidx[:10])
-    # flag = False
     if s_data is not None:
         for idx, s in enumerate(s_data):
             if s == "AGREE":
                 r_label[idx] = (r_label[idx][0] + 7, r_label[idx][1] + 7) if r_label[idx] != None else None
-                # break
             elif s == "DISAGREE":
                 r_label[idx] = (r_label[idx][0] + 10, r_label[idx][1] + 10) if r_label[idx] != None else None
-                # r_reidx[idx] = r_reidx[idx][0] + 9, r_reidx[idx][1] + 9
-    # print(r_label[:10], r_reidx[:10])
+    
     q_starts, r_starts, q_ends, r_ends = [], [], [], []
     for idx, (q_l, q_r, r_l, r_r) in enumerate(zip(q_label, q_reidx, r_label, r_reidx)):
         # q_start, q_end, r_start, r_end = 0, 0, 0, 0
@@ -130,21 +125,16 @@ def add_token_positions(encodings, q_label, r_label, q_reidx, r_reidx, s_data=No
             r_starts.append(0)
             r_ends.append(0)
             continue
-        # print(q_l, q_r, r_l, r_r)
-        # q_s, q_e =  q_l[0], q_l[1]
+
         q_s = encodings.char_to_token(idx, q_l[0]-q_r[0], 0)
         q_e = encodings.char_to_token(idx, q_l[1]-q_r[0], 0)
 
-        # r_s, r_e =  r_l[0], r_l[1]
-        # print(r_l[0]-r_r[0], r_l[1]-r_r[0])
         r_s = encodings.char_to_token(idx, r_l[0]-r_r[0], 1)    #2
         r_e = encodings.char_to_token(idx, r_l[1]-r_r[0], 1)
-        # print(idx,":",q_s, q_e, r_s, r_e)
-        # break
+
 
         if q_s == None and q_e == None or r_s == None and r_e == None:
-            # print(idx,":",q_s, q_e, r_s, r_e)
-            # flag = True
+
             q_starts.append(0)
             q_ends.append(0)
             r_starts.append(0)
@@ -282,15 +272,7 @@ loss_fct = CrossEntropyLoss()
 # other = ['fc']
 # no_main = no_decay + other
 total_steps = len(train_loader) * training_epoch
-# optimizer_grouped_parameters = [
-#     {'params':[p for n,p in params if not any(nd in n for nd in no_main)],'weight_decay':1e-2,'lr':1e-5},
-#     {'params':[p for n,p in params if not any(nd in n for nd in other) and any(nd in n for nd in no_decay) ],'weight_decay':0,'lr':1e-5},
-#     {'params':[p for n,p in params if any(nd in n for nd in other) and any(nd in n for nd in no_decay) ],'weight_decay':0,'lr':1e-2},
-#     {'params':[p for n,p in params if any(nd in n for nd in other) and not any(nd in n for nd in no_decay) ],'weight_decay':1e-2,'lr':1e-2},
-# ]
 
-# optimizer = BertAdam(optimizer_grouped_parameters, lr=learning_rate0, warmup=warmup_proportion, t_total=total_train_steps)
-# optimizer = optim.Adam(model.parameters(), lr=learning_rate0)
 optim = AdamW(model.parameters(), lr=1e-5)
 # optim = AdamW(optimizer_grouped_parameters, lr=1e-4)
 scheduler = get_linear_schedule_with_warmup(
@@ -323,10 +305,7 @@ def get_output_post_fn(test, q_sub_output, r_sub_output):
             r_sub_pred = []
         else:
             for j in range(len(temp)):
-                # if temp[j] == '[SEP]':
-                #     r_sub_pred.remove('[SEP]')
-                # if temp[j] == '[PAD]':
-                #     r_sub_pred.remove('[PAD]')
+
                 if temp[j] == '</s>':
                     r_sub_pred.remove('</s>')
                 if temp[j] == '<pad>':
@@ -334,10 +313,7 @@ def get_output_post_fn(test, q_sub_output, r_sub_output):
 
         q_sub.append(' '.join(q_sub_pred))
         r_sub.append(' '.join(r_sub_pred))
-        # if q_sub[-1] == "[CLS]":
-        #     q_sub[-1] = test["q"][len(q_sub)-1]
-        # if r_sub[-1] == "[CLS]":
-        #     r_sub[-1] = test["r"][len(r_sub)-1]
+
         if q_sub[-1] == "<s>":
             q_sub[-1] = test["q"][len(q_sub)-1]
         if r_sub[-1] == "<s>":
@@ -387,9 +363,7 @@ def lcs(X, Y):
 
 
 def acc_(full, sub):
-    # print("acc fuc: ", full, sub)
     common, m, n = lcs(full, sub)
-    # print("common: ", common, m, n)
     union = m + n - common
     if union == 0:
         return 1
@@ -559,7 +533,7 @@ for epoch in range(training_epoch):
     # print("before: ", acc, best_acc)
     if acc > best_acc:
         best_acc = acc
-        best_model_name = "/home/shuxian109504502/AICUP/data/roberta_lr_1e5_squad2_"+str(best_acc)
+        best_model_name = str(best_acc)
         torch.save(model.state_dict(), best_model_name)
         print("save model----acc: ", best_acc)
 
@@ -571,7 +545,7 @@ model.load_state_dict(torch.load(best_model_name))
 # ## Predict
 
 # %%
-def predict(test_loader):
+def predict(test_loader, test_encodings):
     predict_pos = []
 
     model.eval()
@@ -602,26 +576,17 @@ def predict(test_loader):
 
         for i in range(len(input_ids)):
             predict_pos.append((q_start_prdict[i].item(), r_start_prdict[i].item(), q_end_prdict[i].item(), r_end_prdict[i].item()))
-            # pre_1 = offset_mapping[8 * batch_id + i][q_start_prdict[i].item()][0]
-            # pre_2 = offset_mapping[8 * batch_id + i][q_end_prdict[i].item()][-1]
-            # true_ans = val_dataset.dict['ans'][j]
-            # pred_ans = val_dataset.dict['snippet'][j][pre_1:pre_2]
-            # q_sub = test_offset_mapping
-            # q_sub = tokenizer.decode(input_ids[i][q_start_prdict[i]:q_end_prdict[i]+1])
-            # r_sub = tokenizer.decode(input_ids[i][r_start_prdict[i]:r_end_prdict[i]+1])
-            # while tokenizer.decode(input_ids[i][predict_pos[-1][0]])[0:2] == "##":
-            #     predict_pos[-1][0] -= 1
-            # while tokenizer.decode(input_ids[i][predict_pos[-1][1]])[0:2] == "##":
-            #     # print(predict_pos[-1][1])
-            #     predict_pos[-1][1] -= 1
-                
-            # q_sub_output.append(q_sub)
-            # r_sub_output.append(r_sub)
+            
+            if test_encodings.sequence_ids(batch_size * batch_id + i)[predict_pos[-1][2]] != 0:
+                predict_pos[-1] = (q_start_prdict[i].item(), r_start_prdict[i].item(), test_encodings.sequence_ids(batch_size * batch_id + i).index(1) - 3, r_end_prdict[i].item())
+            if test_encodings.sequence_ids(batch_size * batch_id + i)[predict_pos[-1][1]] != 1:
+                predict_pos[-1] = (q_start_prdict[i].item(), test_encodings.sequence_ids(batch_size * batch_id + i).index(1), q_end_prdict[i].item(), r_end_prdict[i].item())
+            
     
     return predict_pos  #q_sub_output, r_sub_output, predict_pos
 
 # %%
-test = pd.read_csv("/home/shuxian109504502/AICUP/data/Batch_answers - test_data(no_label).csv")
+test = pd.read_csv("../data/Batch_answers - test_data(no_label).csv")
 test.tail()
 test[['q','r']] = test[['q','r']].apply(lambda x: x.str.strip('\"'))
 test.tail()
@@ -666,7 +631,6 @@ test["r_reidx"] = test["r"].apply(lambda x : (x[1][0], x[1][1]))
 test["r_sub_idx"] = test["r"].apply(lambda x : x[1][-1])
 test["r"] = test["r"].apply(lambda x : x[0])
 test["s+r"] = test["s"] + ": " + test["r"]
-test.tail(10)   #2387
 
 # %%
 test_data_q = test['q'].tolist()
@@ -682,7 +646,7 @@ test_loader = DataLoader(test_dataset, batch_size=8, shuffle=False)
 
 # %%
 # q_sub_output, r_sub_output, predict_pos = predict(test_loader)
-predict_pos = predict(test_loader)
+predict_pos = predict(test_loader, test_offset_mapping)
 
 # %%
 predict_pos[0]
@@ -700,17 +664,8 @@ for i in range(len(predict_pos)):
     r_sub.append(r_pre_sen)
 
 # %%
-# q_sub, r_sub = get_output_post_fn(test, q_sub_output, r_sub_output)
-
-# %%
 test['q_sub'] = q_sub
 test['r_sub'] = r_sub
-
-# %%
-test.head(10)
-
-# %%
-test[test["id"] == 15]
 
 # %%
 ans_id, ans_q, ans_r = [], [], []
@@ -733,12 +688,9 @@ for id in set(test["id"]):
             # print("q", max_idx)
             for q in q_frame["q_sub"]:
                 if len(q) == max_idx:
-                    # print(q)
                     q_sub += q
-                    # print("q_sub", q_sub)
                     break
     if len(q_sub) == 0:
-        # print(frame)
         if len(frame) == 1:
             q_sub = frame["q_sub"].iloc[0]
         else:
@@ -756,16 +708,12 @@ for id in set(test["id"]):
             # find max len by q_set to find in frame
             r_frame = frame[frame["r_sub_idx"] == idx]
             max_idx = max(len(r) for r in r_frame["r_sub"])
-            # print("r", max_idx)
             for r in r_frame["r_sub"]:
                 if len(r) == max_idx:
-                    # print(r)
                     r_sub += r
-                    # print("r_sub", r_sub)
                     break
 
     if len(r_sub) == 0:
-        # print(idx)
         if len(frame) == 1:
             r_sub = frame["r_sub"].iloc[0]
         else:
@@ -794,4 +742,4 @@ ans = pd.DataFrame({"id": ans_id, "q": ans_q, "r": ans_r})
 ans
 
 # %%
-ans.to_csv("submission_roberta_lr_1e5_squad2.csv", index=False, encoding="utf-8")
+ans.to_csv("submission_roberta_"+best_model_name+".csv", index=False, encoding="utf-8")
